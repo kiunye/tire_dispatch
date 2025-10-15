@@ -11,6 +11,9 @@ defmodule TireDispatch.Users.User do
     field :hashed_password, :string, redact: true
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
+    field :role, Ecto.Enum, values: [:driver, :provider, :admin], default: :driver
+    field :phone_number, :string
+    field :is_active, :boolean, default: true
 
     timestamps(type: :utc_datetime)
   end
@@ -57,6 +60,25 @@ defmodule TireDispatch.Users.User do
     else
       changeset
     end
+  end
+
+  @doc """
+  A user changeset for registration that includes role and phone number.
+  """
+  def registration_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:email, :password, :role, :phone_number])
+    |> validate_email(opts)
+    |> validate_password(opts)
+    |> validate_phone_number()
+    |> validate_inclusion(:role, [:driver, :provider, :admin])
+  end
+
+  defp validate_phone_number(changeset) do
+    changeset
+    |> validate_format(:phone_number, ~r/^\+?[1-9]\d{1,14}$/,
+      message: "must be a valid phone number"
+    )
   end
 
   @doc """
