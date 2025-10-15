@@ -74,6 +74,16 @@ defmodule TireDispatch.Users.User do
     |> validate_inclusion(:role, [:driver, :provider, :admin])
   end
 
+  @doc """
+  A user changeset for updating user information.
+  """
+  def update_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:phone_number, :role, :is_active])
+    |> validate_phone_number()
+    |> validate_inclusion(:role, [:driver, :provider, :admin])
+  end
+
   defp validate_phone_number(changeset) do
     changeset
     |> validate_format(:phone_number, ~r/^\+?[1-9]\d{1,14}$/,

@@ -60,6 +60,23 @@ defmodule TireDispatch.Users do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
+  @doc """
+  Lists all users with a specific role.
+
+  ## Examples
+
+      iex> list_users_by_role(:driver)
+      [%User{}, ...]
+
+      iex> list_users_by_role(:provider)
+      [%User{}, ...]
+
+  """
+  def list_users_by_role(role) when role in [:driver, :provider, :admin] do
+    from(u in User, where: u.role == ^role)
+    |> Repo.all()
+  end
+
   ## User registration
 
   @doc """
@@ -76,8 +93,26 @@ defmodule TireDispatch.Users do
   """
   def register_user(attrs) do
     %User{}
-    |> User.email_changeset(attrs)
+    |> User.registration_changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Updates a user.
+
+  ## Examples
+
+      iex> update_user(user, %{field: new_value})
+      {:ok, %User{}}
+
+      iex> update_user(user, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_user(%User{} = user, attrs) do
+    user
+    |> User.update_changeset(attrs)
+    |> Repo.update()
   end
 
   ## Settings

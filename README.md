@@ -1,5 +1,9 @@
 # TireDispatch
 
+Tire Dispatch is a real-time platform connecting drivers experiencing tire emergencies with nearby tire service providers. The platform enables instant job matching based on location, dynamic pricing based on urgency and conditions, secure payment processing with escrow, and real-time job tracking from request to completion.
+
+## Getting Started
+
 To start your Phoenix server:
 
 * Run `mix setup` to install and setup dependencies
