@@ -14,7 +14,10 @@ defmodule TireDispatch.Providers.Provider do
     field :is_active, :boolean, default: true
     field :is_verified, :boolean, default: false
     field :is_premium, :boolean, default: false
+    field :payout_method, Ecto.Enum, values: [:stripe, :mpesa], default: :stripe
     field :stripe_account_id, :string
+    field :stripe_subscription_id, :string
+    field :mpesa_phone_number, :string
     field :latitude, :float
     field :longitude, :float
 
@@ -34,17 +37,40 @@ defmodule TireDispatch.Providers.Provider do
       :is_active,
       :is_verified,
       :is_premium,
+      :payout_method,
       :stripe_account_id,
+      :stripe_subscription_id,
+      :mpesa_phone_number,
       :latitude,
       :longitude
     ])
     |> validate_required([:user_id, :vehicle_type, :service_radius_km])
     |> validate_inclusion(:vehicle_type, [:compact, :suv, :truck])
+    |> validate_inclusion(:payout_method, [:stripe, :mpesa])
     |> validate_number(:service_radius_km, greater_than: 0, less_than_or_equal_to: 100)
     |> validate_number(:rating, greater_than_or_equal_to: 0, less_than_or_equal_to: 5)
     |> validate_location()
+    |> validate_payout_method()
     |> unique_constraint(:user_id)
     |> foreign_key_constraint(:user_id)
+  end
+
+  defp validate_payout_method(changeset) do
+    payout_method = get_field(changeset, :payout_method)
+
+    case payout_method do
+      :mpesa ->
+        mpesa_phone = get_field(changeset, :mpesa_phone_number)
+
+        if is_nil(mpesa_phone) or mpesa_phone == "" do
+          add_error(changeset, :mpesa_phone_number, "is required when payout method is MPESA")
+        else
+          changeset
+        end
+
+      _ ->
+        changeset
+    end
   end
 
   defp validate_location(changeset) do
