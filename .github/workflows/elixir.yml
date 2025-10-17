@@ -31,7 +31,9 @@ jobs:
 
     env:
       MIX_ENV: test
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/tire_dispatch_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: localhost
 
     steps:
       - uses: actions/checkout@v4

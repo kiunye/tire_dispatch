@@ -6,9 +6,9 @@ import Config
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :tire_dispatch, TireDispatch.Repo,
-  username: "chris",
-  password: "ynbt2qra",
-  hostname: "localhost",
+  username: System.get_env("POSTGRES_USER") || "chris",
+  password: System.get_env("POSTGRES_PASSWORD") || "ynbt2qra",
+  hostname: System.get_env("POSTGRES_HOST") || "localhost",
   database: "tire_dispatch_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
