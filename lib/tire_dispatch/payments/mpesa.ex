@@ -172,7 +172,10 @@ defmodule TireDispatch.Payments.MPESA do
     |> Calendar.strftime("%Y%m%d%H%M%S")
   end
 
-  defp send_stk_push_request(token, phone_number, amount, account_reference, transaction_desc, %{password: password, timestamp: timestamp}) do
+  defp send_stk_push_request(token, phone_number, amount, account_reference, transaction_desc, %{
+         password: password,
+         timestamp: timestamp
+       }) do
     url = "#{base_url()}/mpesa/stkpush/v1/processrequest"
 
     headers = [
@@ -197,7 +200,11 @@ defmodule TireDispatch.Payments.MPESA do
     case Req.post(url, json: body, headers: headers) do
       {:ok, %{status: 200, body: response_body}} ->
         case response_body do
-          %{"ResponseCode" => "0", "CheckoutRequestID" => checkout_request_id, "MerchantRequestID" => merchant_request_id} ->
+          %{
+            "ResponseCode" => "0",
+            "CheckoutRequestID" => checkout_request_id,
+            "MerchantRequestID" => merchant_request_id
+          } ->
             Logger.info("STK Push initiated successfully", %{
               checkout_request_id: checkout_request_id,
               merchant_request_id: merchant_request_id,
@@ -205,10 +212,11 @@ defmodule TireDispatch.Payments.MPESA do
               amount: amount
             })
 
-            {:ok, %{
-              checkout_request_id: checkout_request_id,
-              merchant_request_id: merchant_request_id
-            }}
+            {:ok,
+             %{
+               checkout_request_id: checkout_request_id,
+               merchant_request_id: merchant_request_id
+             }}
 
           %{"ResponseCode" => code, "ResponseDescription" => description} ->
             Logger.error("STK Push failed", %{
@@ -259,7 +267,10 @@ defmodule TireDispatch.Payments.MPESA do
     end
   end
 
-  defp send_status_query_request(token, checkout_request_id, %{password: password, timestamp: timestamp}) do
+  defp send_status_query_request(token, checkout_request_id, %{
+         password: password,
+         timestamp: timestamp
+       }) do
     url = "#{base_url()}/mpesa/stkpushquery/v1/query"
 
     headers = [
@@ -284,12 +295,13 @@ defmodule TireDispatch.Payments.MPESA do
               result_desc: response_body["ResultDesc"]
             })
 
-            {:ok, %{
-              result_code: result_code,
-              result_desc: response_body["ResultDesc"],
-              merchant_request_id: response_body["MerchantRequestID"],
-              checkout_request_id: checkout_request_id
-            }}
+            {:ok,
+             %{
+               result_code: result_code,
+               result_desc: response_body["ResultDesc"],
+               merchant_request_id: response_body["MerchantRequestID"],
+               checkout_request_id: checkout_request_id
+             }}
 
           %{"ResponseCode" => code, "ResponseDescription" => description} ->
             Logger.error("Transaction status query failed", %{
@@ -364,7 +376,11 @@ defmodule TireDispatch.Payments.MPESA do
     case Req.post(url, json: body, headers: headers) do
       {:ok, %{status: 200, body: response_body}} ->
         case response_body do
-          %{"ResponseCode" => "0", "ConversationID" => conversation_id, "OriginatorConversationID" => originator_conversation_id} ->
+          %{
+            "ResponseCode" => "0",
+            "ConversationID" => conversation_id,
+            "OriginatorConversationID" => originator_conversation_id
+          } ->
             Logger.info("B2C payment initiated successfully", %{
               conversation_id: conversation_id,
               originator_conversation_id: originator_conversation_id,
@@ -372,10 +388,11 @@ defmodule TireDispatch.Payments.MPESA do
               amount: amount
             })
 
-            {:ok, %{
-              conversation_id: conversation_id,
-              originator_conversation_id: originator_conversation_id
-            }}
+            {:ok,
+             %{
+               conversation_id: conversation_id,
+               originator_conversation_id: originator_conversation_id
+             }}
 
           %{"ResponseCode" => code, "ResponseDescription" => description} ->
             Logger.error("B2C payment failed", %{
@@ -451,7 +468,11 @@ defmodule TireDispatch.Payments.MPESA do
     case Req.post(url, json: body, headers: headers) do
       {:ok, %{status: 200, body: response_body}} ->
         case response_body do
-          %{"ResponseCode" => "0", "ConversationID" => conversation_id, "OriginatorConversationID" => originator_conversation_id} ->
+          %{
+            "ResponseCode" => "0",
+            "ConversationID" => conversation_id,
+            "OriginatorConversationID" => originator_conversation_id
+          } ->
             Logger.info("Reversal initiated successfully", %{
               conversation_id: conversation_id,
               originator_conversation_id: originator_conversation_id,
@@ -459,10 +480,11 @@ defmodule TireDispatch.Payments.MPESA do
               amount: amount
             })
 
-            {:ok, %{
-              conversation_id: conversation_id,
-              originator_conversation_id: originator_conversation_id
-            }}
+            {:ok,
+             %{
+               conversation_id: conversation_id,
+               originator_conversation_id: originator_conversation_id
+             }}
 
           %{"ResponseCode" => code, "ResponseDescription" => description} ->
             Logger.error("Reversal failed", %{

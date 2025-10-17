@@ -661,10 +661,11 @@ defmodule TireDispatch.Payments do
         )
 
         # Return the conversation_id as the external_id for tracking
-        {:ok, %{
-          external_id: reversal_result.conversation_id,
-          amount: transaction.amount_cents
-        }}
+        {:ok,
+         %{
+           external_id: reversal_result.conversation_id,
+           amount: transaction.amount_cents
+         }}
 
       {:error, reason} ->
         Logger.error("MPESA reversal failed",

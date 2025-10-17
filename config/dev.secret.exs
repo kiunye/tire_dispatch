@@ -27,6 +27,7 @@ config :tire_dispatch, TireDispatch.Payments.MPESA,
   initiator_name: System.get_env("MPESA_INITIATOR_NAME") || "testapi",
   security_credential: System.get_env("MPESA_SECURITY_CREDENTIAL") || "your_security_credential",
   environment: System.get_env("MPESA_ENVIRONMENT") || "sandbox",
-  callback_url: System.get_env("MPESA_CALLBACK_URL") || "http://localhost:4000/api/mpesa/stk-callback",
+  callback_url:
+    System.get_env("MPESA_CALLBACK_URL") || "http://localhost:4000/api/mpesa/stk-callback",
   timeout_url: System.get_env("MPESA_TIMEOUT_URL") || "http://localhost:4000/api/mpesa/timeout",
   result_url: System.get_env("MPESA_RESULT_URL") || "http://localhost:4000/api/mpesa/result"
