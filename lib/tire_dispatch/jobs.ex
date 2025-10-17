@@ -50,6 +50,25 @@ defmodule TireDispatch.Jobs do
   @doc """
   Gets a single job by ID.
 
+  ## Arguments
+
+    * `id` - UUID of the job
+
+  ## Returns
+
+    * `{:ok, job}` if found
+    * `{:error, :not_found}` if not found
+  """
+  def get_job(id) do
+    case Repo.get(Job, id) do
+      nil -> {:error, :not_found}
+      job -> {:ok, job}
+    end
+  end
+
+  @doc """
+  Gets a single job by ID.
+
   Raises `Ecto.NoResultsError` if the Job does not exist.
 
   ## Examples
@@ -254,6 +273,35 @@ defmodule TireDispatch.Jobs do
 
   def complete_job(%Job{} = _job, _before_photo_url, _after_photo_url) do
     {:error, "Job can only be completed from on_site status"}
+  end
+
+  @doc """
+  Confirms payment for a job after successful payment processing.
+
+  This transitions the job from :open to :payment_confirmed status,
+  indicating that payment has been received and the job is ready for
+  provider acceptance.
+
+  ## Arguments
+
+    * `job` - The job struct to confirm payment for
+
+  ## Returns
+
+    * `{:ok, job}` on success
+    * `{:error, changeset}` if validation fails
+
+  ## Examples
+
+      iex> confirm_payment(%Job{status: :open})
+      {:ok, %Job{status: :payment_confirmed}}
+
+  """
+  def confirm_payment(%Job{} = job) do
+    job
+    |> Job.status_changeset(%{status: :payment_confirmed})
+    |> Repo.update()
+    |> tap(&broadcast_job_updated/1)
   end
 
   @doc """

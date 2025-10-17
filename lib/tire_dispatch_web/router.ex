@@ -23,10 +23,15 @@ defmodule TireDispatchWeb.Router do
     get "/", PageController, :home
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", TireDispatchWeb do
-  #   pipe_through :api
-  # end
+  # Webhook routes (no CSRF protection needed)
+  scope "/api", TireDispatchWeb do
+    pipe_through :api
+
+    post "/webhooks/stripe", WebhookController, :stripe_webhook
+    post "/mpesa/stk-callback", MPESAWebhookController, :stk_callback
+    post "/mpesa/timeout", MPESAWebhookController, :timeout_callback
+    post "/mpesa/result", MPESAWebhookController, :b2c_result_callback
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:tire_dispatch, :dev_routes) do

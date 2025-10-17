@@ -10,7 +10,10 @@ defmodule TireDispatch.Payments.Transaction do
     field :currency, :string, default: "usd"
     field :type, Ecto.Enum, values: [:payment, :payout, :refund]
     field :status, Ecto.Enum, values: [:pending, :completed, :failed], default: :pending
-    field :stripe_transaction_id, :string
+    field :payment_method, Ecto.Enum, values: [:stripe, :mpesa]
+    field :external_transaction_id, :string
+    field :mpesa_checkout_request_id, :string
+    field :mpesa_phone_number, :string
     field :error_message, :string
     field :notes, :string
 
@@ -32,7 +35,10 @@ defmodule TireDispatch.Payments.Transaction do
       :currency,
       :type,
       :status,
-      :stripe_transaction_id,
+      :payment_method,
+      :external_transaction_id,
+      :mpesa_checkout_request_id,
+      :mpesa_phone_number,
       :error_message,
       :notes,
       :job_id,
@@ -56,7 +62,7 @@ defmodule TireDispatch.Payments.Transaction do
   """
   def status_changeset(transaction, attrs) do
     transaction
-    |> cast(attrs, [:status, :stripe_transaction_id, :error_message])
+    |> cast(attrs, [:status, :external_transaction_id, :error_message])
     |> validate_required([:status])
     |> validate_inclusion(:status, [:pending, :completed, :failed])
   end

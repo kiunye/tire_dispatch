@@ -118,9 +118,10 @@ if config_env() == :prod do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 
   # Stripe configuration
-  config :stripe,
+  config :stripity_stripe,
     api_key: System.fetch_env!("STRIPE_API_KEY"),
-    public_key: System.fetch_env!("STRIPE_PUBLIC_KEY")
+    public_key: System.fetch_env!("STRIPE_PUBLIC_KEY"),
+    webhook_secret: System.fetch_env!("STRIPE_WEBHOOK_SECRET")
 
   # AWS S3 configuration
   config :ex_aws,
@@ -141,6 +142,19 @@ if config_env() == :prod do
 
   # Google Maps API configuration
   config :tire_dispatch, :google_maps, api_key: System.fetch_env!("GOOGLE_MAPS_API_KEY")
+
+  # MPESA configuration
+  config :tire_dispatch, TireDispatch.Payments.MPESA,
+    consumer_key: System.fetch_env!("MPESA_CONSUMER_KEY"),
+    consumer_secret: System.fetch_env!("MPESA_CONSUMER_SECRET"),
+    shortcode: System.fetch_env!("MPESA_SHORTCODE"),
+    passkey: System.fetch_env!("MPESA_PASSKEY"),
+    initiator_name: System.fetch_env!("MPESA_INITIATOR_NAME"),
+    security_credential: System.fetch_env!("MPESA_SECURITY_CREDENTIAL"),
+    environment: System.get_env("MPESA_ENVIRONMENT") || "sandbox",
+    callback_url: System.fetch_env!("MPESA_CALLBACK_URL"),
+    timeout_url: System.fetch_env!("MPESA_TIMEOUT_URL"),
+    result_url: System.fetch_env!("MPESA_RESULT_URL")
 
   # Sentry error tracking
   if sentry_dsn = System.get_env("SENTRY_DSN") do

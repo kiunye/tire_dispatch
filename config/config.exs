@@ -68,7 +68,30 @@ config :tailwind,
 # Configures Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [
+    :request_id,
+    :job_id,
+    :transaction_id,
+    :payout_id,
+    :provider_id,
+    :driver_id,
+    :session_id,
+    :amount_cents,
+    :type,
+    :status,
+    :external_transaction_id,
+    :payment_method,
+    :reason,
+    :error,
+    :original_transaction_id,
+    :refund_transaction_id,
+    :refund_id,
+    :mpesa_transaction_id,
+    :conversation_id,
+    :charge_id,
+    :destination,
+    :amount
+  ]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
@@ -90,6 +113,9 @@ config :tire_dispatch, Oban,
 
 # Platform commission percentage
 config :tire_dispatch, :platform_commission_percent, 15
+
+# Google Maps API configuration
+config :tire_dispatch, :google_maps_api_key, System.get_env("GOOGLE_MAPS_API_KEY")
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

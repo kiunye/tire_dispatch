@@ -7,11 +7,16 @@ defmodule TireDispatch.Application do
 
   @impl true
   def start(_type, _args) do
+    # Initialize MPESA token cache
+    TireDispatch.Payments.MPESA.init_cache()
+
     children = [
       TireDispatchWeb.Telemetry,
       TireDispatch.Repo,
       {DNSCluster, query: Application.get_env(:tire_dispatch, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TireDispatch.PubSub},
+      # Start the PricingCache for fast pricing rule lookups
+      TireDispatch.Pricing.PricingCache,
       # Start a worker by calling: TireDispatch.Worker.start_link(arg)
       # {TireDispatch.Worker, arg},
       # Start to serve requests, typically the last entry
