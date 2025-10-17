@@ -2,9 +2,9 @@ name: Elixir CI
 
 on:
   push:
-    branches: [ "develop" ]
+    branches: ["develop"]
   pull_request:
-    branches: [ "develop" ]
+    branches: ["develop"]
 
 permissions:
   contents: read
@@ -13,14 +13,14 @@ jobs:
   build:
     name: Build and test
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
-        image: postgres:15
+        image: postgis/postgis:15-3.3
         env:
-          POSTGRES_USER: chris
-          POSTGRES_PASSWORD: ynbt2qra
-          POSTGRES_DB: tire_dispatch_dev
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tire_dispatch_test
         ports:
           - 5432:5432
         options: >-
@@ -31,48 +31,47 @@ jobs:
 
     env:
       MIX_ENV: test
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/my_app_test
-      SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/tire_dispatch_test
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        elixir-version: '1.15.2'
-        otp-version: '26.0'
-        
-    - name: Restore dependencies cache
-      uses: actions/cache@v3
-      with:
-        path: |
-          deps
-          _build
-        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-mix-
-        
-    - name: Install dependencies
-      run: mix deps.get --only $MIX_ENV
-      
-    - name: Check code formatting
-      run: mix format --check-formatted
-      
-    - name: Check compilation warnings
-      run: mix compile --warnings-as-errors --force
-      
-    - name: Create and migrate database
-      run: mix ecto.create && mix ecto.migrate
-      
-    - name: Run tests
-      run: mix test
-      
-    - name: Run credo static analysis
-      run: mix credo --strict
-      continue-on-error: true  # Optional: remove if you want credo failures to break CI
-      
-    - name: Run dialyzer
-      run: mix dialyzer
-      continue-on-error: true  # Optional: remove if you want dialyzer failures to break CI
-      env:
-        DIALYZER_CI: true
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.15.2"
+          otp-version: "26.0"
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get --only $MIX_ENV
+
+      - name: Check code formatting
+        run: mix format --check-formatted
+
+      - name: Check compilation warnings
+        run: mix compile --warnings-as-errors --force
+
+      - name: Create and migrate database
+        run: mix ecto.create && mix ecto.migrate
+
+      - name: Run tests
+        run: mix test
+
+      - name: Run credo static analysis
+        run: mix credo --strict
+        continue-on-error: true # Optional: remove if you want credo failures to break CI
+
+      - name: Run dialyzer
+        run: mix dialyzer
+        continue-on-error: true # Optional: remove if you want dialyzer failures to break CI
+        env:
+          DIALYZER_CI: true
