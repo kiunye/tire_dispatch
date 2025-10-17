@@ -6,14 +6,14 @@ defmodule TireDispatch.Users.User do
   import Ecto.Changeset
 
   schema "users" do
-    field :email, :string
-    field :password, :string, virtual: true, redact: true
-    field :hashed_password, :string, redact: true
-    field :confirmed_at, :utc_datetime
-    field :authenticated_at, :utc_datetime, virtual: true
-    field :role, Ecto.Enum, values: [:driver, :provider, :admin], default: :driver
-    field :phone_number, :string
-    field :is_active, :boolean, default: true
+    field(:email, :string)
+    field(:password, :string, virtual: true, redact: true)
+    field(:hashed_password, :string, redact: true)
+    field(:confirmed_at, :utc_datetime)
+    field(:authenticated_at, :utc_datetime, virtual: true)
+    field(:role, Ecto.Enum, values: [:driver, :provider, :admin], default: :driver)
+    field(:phone_number, :string)
+    field(:is_active, :boolean, default: true)
 
     timestamps(type: :utc_datetime)
   end
@@ -107,6 +107,9 @@ defmodule TireDispatch.Users.User do
       Defaults to `true`.
   """
   def password_changeset(user, attrs, opts \\ []) do
+    # Password is always required when changing password
+    opts = Keyword.put(opts, :require_password, true)
+
     user
     |> cast(attrs, [:password])
     |> validate_confirmation(:password, message: "does not match password")
@@ -114,14 +117,23 @@ defmodule TireDispatch.Users.User do
   end
 
   defp validate_password(changeset, opts) do
-    changeset
-    |> validate_required([:password])
-    |> validate_length(:password, min: 12, max: 72)
-    # Examples of additional password validation:
-    # |> validate_format(:password, ~r/[a-z]/, message: "at least one lower case character")
-    # |> validate_format(:password, ~r/[A-Z]/, message: "at least one upper case character")
-    # |> validate_format(:password, ~r/[!?@#$%^&*_0-9]/, message: "at least one digit or punctuation character")
-    |> maybe_hash_password(opts)
+    # For password changes, password is always required
+    # For registration, password is optional (to support magic link authentication)
+    require_password? = Keyword.get(opts, :require_password, false)
+    password_provided? = get_change(changeset, :password) != nil
+
+    if require_password? or password_provided? do
+      changeset
+      |> validate_required([:password])
+      |> validate_length(:password, min: 12, max: 72)
+      # Examples of additional password validation:
+      # |> validate_format(:password, ~r/[a-z]/, message: "at least one lower case character")
+      # |> validate_format(:password, ~r/[A-Z]/, message: "at least one upper case character")
+      # |> validate_format(:password, ~r/[!?@#$%^&*_0-9]/, message: "at least one digit or punctuation character")
+      |> maybe_hash_password(opts)
+    else
+      changeset
+    end
   end
 
   defp maybe_hash_password(changeset, opts) do

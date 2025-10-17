@@ -28,15 +28,19 @@ defmodule TireDispatch.UsersFixtures do
   end
 
   def user_fixture(attrs \\ %{}) do
-    user = unconfirmed_user_fixture(attrs)
+    # For confirmed users, add password if not specified
+    attrs_with_password = Map.put_new(attrs, :password, valid_user_password())
 
-    token =
-      extract_user_token(fn url ->
-        Users.deliver_login_instructions(user, url)
-      end)
+    {:ok, user} =
+      attrs_with_password
+      |> valid_user_attributes()
+      |> Users.register_user()
 
-    {:ok, {user, _expired_tokens}} =
-      Users.login_user_by_magic_link(token)
+    # Confirm the user by updating confirmed_at
+    {:ok, user} =
+      user
+      |> Ecto.Changeset.change(%{confirmed_at: DateTime.utc_now(:second)})
+      |> TireDispatch.Repo.update()
 
     user
   end
