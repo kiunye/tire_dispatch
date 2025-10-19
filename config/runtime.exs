@@ -134,6 +134,8 @@ if config_env() == :prod do
     host: "s3.amazonaws.com",
     region: System.get_env("AWS_REGION") || "us-east-1"
 
+  config :tire_dispatch, :s3_bucket, System.fetch_env!("AWS_S3_BUCKET")
+
   # Twilio configuration (for SMS notifications)
   config :tire_dispatch, :twilio,
     account_sid: System.fetch_env!("TWILIO_ACCOUNT_SID"),

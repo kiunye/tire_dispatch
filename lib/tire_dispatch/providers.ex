@@ -538,16 +538,11 @@ defmodule TireDispatch.Providers do
 
   # Private helper to call Stripe API
   defp create_stripe_account(provider) do
-    # Build account parameters
+    # Build account parameters - using minimal required fields for Express accounts
     params = %{
-      type: "express",
+      type: :express,
       country: "US",
-      email: provider.user.email,
-      capabilities: %{
-        card_payments: %{requested: true},
-        transfers: %{requested: true}
-      },
-      business_type: "individual"
+      email: provider.user.email
     }
 
     # Call Stripe API
@@ -557,9 +552,6 @@ defmodule TireDispatch.Providers do
 
       {:error, %Stripe.Error{} = error} ->
         {:error, error.message}
-
-      {:error, reason} ->
-        {:error, inspect(reason)}
     end
   end
 
@@ -596,7 +588,7 @@ defmodule TireDispatch.Providers do
         account: provider.stripe_account_id,
         refresh_url: refresh_url,
         return_url: return_url,
-        type: "account_onboarding"
+        type: :account_onboarding
       }
 
       case Stripe.AccountLink.create(params) do
@@ -610,9 +602,6 @@ defmodule TireDispatch.Providers do
           })
 
           {:error, error.message}
-
-        {:error, reason} ->
-          {:error, inspect(reason)}
       end
     end
   end
@@ -653,9 +642,6 @@ defmodule TireDispatch.Providers do
           })
 
           {:error, error.message}
-
-        {:error, reason} ->
-          {:error, inspect(reason)}
       end
     end
   end
@@ -728,8 +714,8 @@ defmodule TireDispatch.Providers do
     params = %{
       customer: customer_id,
       items: [%{price: price_id}],
-      payment_behavior: "default_incomplete",
-      payment_settings: %{save_default_payment_method: "on_subscription"},
+      payment_behavior: :default_incomplete,
+      payment_settings: %{save_default_payment_method: :on_subscription},
       expand: ["latest_invoice.payment_intent"]
     }
 
@@ -739,9 +725,6 @@ defmodule TireDispatch.Providers do
 
       {:error, %Stripe.Error{} = error} ->
         {:error, error.message}
-
-      {:error, reason} ->
-        {:error, inspect(reason)}
     end
   end
 
@@ -805,9 +788,6 @@ defmodule TireDispatch.Providers do
 
       {:error, %Stripe.Error{} = error} ->
         {:error, error.message}
-
-      {:error, reason} ->
-        {:error, inspect(reason)}
     end
   end
 

@@ -25,4 +25,15 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
+# AWS S3 configuration for test (use mock or test bucket)
+config :ex_aws,
+  access_key_id: "test_key",
+  secret_access_key: "test_secret",
+  region: "us-east-1"
+
+config :ex_aws, :s3,
+  scheme: "https://",
+  host: "s3.amazonaws.com",
+  region: "us-east-1"
+
 import_config "test.secret.exs"

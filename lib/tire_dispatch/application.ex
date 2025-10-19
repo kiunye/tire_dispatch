@@ -17,6 +17,8 @@ defmodule TireDispatch.Application do
       {Phoenix.PubSub, name: TireDispatch.PubSub},
       # Start the PricingCache for fast pricing rule lookups
       TireDispatch.Pricing.PricingCache,
+      # Start Oban for background job processing
+      {Oban, Application.fetch_env!(:tire_dispatch, Oban)},
       # Start a worker by calling: TireDispatch.Worker.start_link(arg)
       # {TireDispatch.Worker, arg},
       # Start to serve requests, typically the last entry

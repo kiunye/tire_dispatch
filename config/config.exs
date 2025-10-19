@@ -90,7 +90,24 @@ config :logger, :default_formatter,
     :conversation_id,
     :charge_id,
     :destination,
-    :amount
+    :amount,
+    # Worker-specific metadata
+    :args,
+    :provider_count,
+    :topic,
+    :to,
+    :message_length,
+    :message_sid,
+    :subject,
+    :phone_number,
+    :payout_method,
+    :total_jobs,
+    :successful_payouts,
+    :failed_payouts,
+    :date,
+    :completed_jobs,
+    :total_revenue_cents,
+    :errors
   ]
 
 # Use Jason for JSON parsing in Phoenix
@@ -108,7 +125,13 @@ config :tire_dispatch, Oban,
   repo: TireDispatch.Repo,
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
-    {Oban.Plugins.Repeater, mode: :global}
+    {Oban.Plugins.Cron,
+     crontab: [
+       # Daily payout processing at 2 AM
+       {"0 2 * * *", TireDispatch.Workers.DailyPayoutWorker},
+       # Daily analytics aggregation at 3 AM
+       {"0 3 * * *", TireDispatch.Workers.AnalyticsAggregatorWorker}
+     ]}
   ]
 
 # Platform commission percentage
@@ -116,6 +139,9 @@ config :tire_dispatch, :platform_commission_percent, 15
 
 # Google Maps API configuration
 config :tire_dispatch, :google_maps_api_key, System.get_env("GOOGLE_MAPS_API_KEY")
+
+# AWS S3 configuration
+config :tire_dispatch, :s3_bucket, System.get_env("AWS_S3_BUCKET") || "tire-dispatch-photos"
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

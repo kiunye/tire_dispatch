@@ -242,22 +242,19 @@ defmodule TireDispatch.Payments do
         external_transaction_id: transfer.id
       })
     else
-      {:error, %Stripe.Error{} = error} ->
-        Logger.error("Stripe transfer failed",
-          payout_id: payout_transaction.id,
-          provider_id: payout_transaction.provider_id,
-          error: error.message
-        )
-
-        mark_payment_failed(payout_transaction, error.message)
-
       {:error, reason} ->
+        error_message =
+          case reason do
+            %Stripe.Error{} = error -> error.message
+            _ -> inspect(reason)
+          end
+
         Logger.error("Payout transfer failed",
           payout_id: payout_transaction.id,
-          reason: inspect(reason)
+          reason: error_message
         )
 
-        mark_payment_failed(payout_transaction, inspect(reason))
+        mark_payment_failed(payout_transaction, error_message)
     end
   end
 
@@ -362,21 +359,19 @@ defmodule TireDispatch.Payments do
 
       {:ok, %{checkout_url: session.url, session_id: session.id}}
     else
-      {:error, %Stripe.Error{} = error} ->
-        Logger.error("Stripe Checkout session creation failed",
-          job_id: job_id,
-          error: error.message
-        )
-
-        {:error, error.message}
-
       {:error, reason} ->
+        error_message =
+          case reason do
+            %Stripe.Error{} = error -> error.message
+            _ -> inspect(reason)
+          end
+
         Logger.error("Failed to initiate Stripe Checkout",
           job_id: job_id,
-          reason: inspect(reason)
+          reason: error_message
         )
 
-        {:error, reason}
+        {:error, error_message}
     end
   end
 
@@ -472,7 +467,7 @@ defmodule TireDispatch.Payments do
     cancel_url = get_cancel_url(job.id)
 
     params = %{
-      mode: "payment",
+      mode: :payment,
       line_items: [
         %{
           price_data: %{
@@ -490,9 +485,9 @@ defmodule TireDispatch.Payments do
       cancel_url: cancel_url,
       client_reference_id: job.id,
       metadata: %{
-        job_id: job.id,
-        driver_id: job.driver_id,
-        service_type: job.service_type
+        "job_id" => job.id,
+        "driver_id" => job.driver_id,
+        "service_type" => to_string(job.service_type)
       }
     }
 
@@ -561,9 +556,9 @@ defmodule TireDispatch.Payments do
       destination: provider.stripe_account_id,
       description: "Payout for job #{payout_transaction.job_id}",
       metadata: %{
-        job_id: payout_transaction.job_id,
-        provider_id: provider.id,
-        payout_transaction_id: payout_transaction.id
+        "job_id" => payout_transaction.job_id,
+        "provider_id" => provider.id,
+        "payout_transaction_id" => payout_transaction.id
       }
     }
 
@@ -619,8 +614,8 @@ defmodule TireDispatch.Payments do
     params = %{
       charge: transaction.external_transaction_id,
       metadata: %{
-        original_transaction_id: transaction.id,
-        job_id: transaction.job_id
+        "original_transaction_id" => transaction.id,
+        "job_id" => transaction.job_id
       }
     }
 
