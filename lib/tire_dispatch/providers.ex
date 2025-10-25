@@ -336,7 +336,7 @@ defmodule TireDispatch.Providers do
       where: not is_nil(p.longitude),
       where:
         fragment(
-          "ST_Distance_Sphere(ST_MakePoint(?, ?), ST_GeomFromText(?, 4326)) <= ?",
+          "ST_DistanceSphere(ST_MakePoint(?, ?), ST_GeomFromText(?, 4326)) <= ?",
           p.longitude,
           p.latitude,
           ^point_wkt,
@@ -344,7 +344,7 @@ defmodule TireDispatch.Providers do
         ),
       order_by:
         fragment(
-          "ST_Distance_Sphere(ST_MakePoint(?, ?), ST_GeomFromText(?, 4326)) ASC",
+          "ST_DistanceSphere(ST_MakePoint(?, ?), ST_GeomFromText(?, 4326)) ASC",
           p.longitude,
           p.latitude,
           ^point_wkt

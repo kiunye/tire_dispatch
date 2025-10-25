@@ -54,8 +54,8 @@ defmodule TireDispatch.Analytics do
       total_jobs: job_stats.total_jobs || 0,
       completed_jobs: job_stats.completed_jobs || 0,
       cancelled_jobs: job_stats.cancelled_jobs || 0,
-      total_revenue_cents: revenue.total_revenue_cents || 0,
-      average_response_time_minutes: Float.round(avg_response_time || 0.0, 2),
+      total_revenue_cents: to_integer(revenue.total_revenue_cents),
+      average_response_time_minutes: to_float(avg_response_time) |> Float.round(2),
       provider_utilization_percent: Float.round(provider_utilization, 2),
       average_job_value_cents: average_job_value
     }
@@ -135,10 +135,12 @@ defmodule TireDispatch.Analytics do
         j.status in [:accepted, :en_route, :on_site] and
           j.inserted_at >= ^start_datetime and
           j.inserted_at <= ^end_datetime,
-      distinct: j.provider_id,
-      select: count(j.provider_id)
+      distinct: true,
+      select: j.provider_id
     )
-    |> Repo.one()
+    |> Repo.all()
+    |> Enum.reject(&is_nil/1)
+    |> length()
   end
 
   defp calculate_average_job_value(revenue) do
@@ -418,4 +420,16 @@ defmodule TireDispatch.Analytics do
     )
     |> Repo.all()
   end
+
+  # Helper functions for type conversion
+
+  defp to_float(nil), do: 0.0
+  defp to_float(value) when is_float(value), do: value
+  defp to_float(%Decimal{} = value), do: Decimal.to_float(value)
+  defp to_float(value) when is_integer(value), do: value * 1.0
+
+  defp to_integer(nil), do: 0
+  defp to_integer(value) when is_integer(value), do: value
+  defp to_integer(%Decimal{} = value), do: Decimal.to_integer(value)
+  defp to_integer(value) when is_float(value), do: round(value)
 end

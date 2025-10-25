@@ -18,11 +18,15 @@ defmodule TireDispatch.Workers.SendNotificationWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"type" => "sms"} = args}) do
-    send_sms(args["to"], args["message"])
+    send_sms_africas_talking(args["to"], args["message"], args["job_id"])
   end
 
   def perform(%Oban.Job{args: %{"type" => "email"} = args}) do
-    send_email(args["to"], args["subject"], args["message"])
+    send_email(args["to"], args["subject"], args["body"] || args["message"], args["job_id"])
+  end
+
+  def perform(%Oban.Job{args: %{"type" => "email_struct"} = args}) do
+    send_email_from_struct(args["email"], args["job_id"])
   end
 
   def perform(%Oban.Job{args: args}) do
@@ -31,7 +35,43 @@ defmodule TireDispatch.Workers.SendNotificationWorker do
   end
 
   @doc """
-  Sends an SMS notification via Twilio API.
+  Sends an SMS notification via AfricasTalking API.
+
+  ## Arguments
+
+    * `to` - Phone number to send SMS to (E.164 format)
+    * `message` - Message body
+    * `job_id` - Associated job ID for logging
+
+  ## Returns
+
+    * `:ok` on success
+    * `{:error, reason}` on failure
+  """
+  def send_sms_africas_talking(to, message, job_id) do
+    Logger.info(
+      "Sending SMS notification via AfricasTalking: to=#{to}, message_length=#{String.length(message)}, job_id=#{job_id}"
+    )
+
+    case TireDispatch.Notifications.AfricasTalking.send_sms(to, message) do
+      {:ok, result} ->
+        Logger.info(
+          "SMS sent successfully via AfricasTalking: to=#{to}, job_id=#{job_id}, message_id=#{result.message_id}, cost=#{result.cost}"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.error(
+          "Failed to send SMS via AfricasTalking: to=#{to}, job_id=#{job_id}, reason=#{inspect(reason)}"
+        )
+
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Sends an SMS notification via Twilio API (legacy support).
 
   ## Arguments
 
@@ -113,14 +153,15 @@ defmodule TireDispatch.Workers.SendNotificationWorker do
     * `to` - Email address to send to
     * `subject` - Email subject line
     * `message` - Email body (HTML or plain text)
+    * `job_id` - Associated job ID for logging
 
   ## Returns
 
     * `:ok` on success
     * `{:error, reason}` on failure
   """
-  def send_email(to, subject, message) do
-    Logger.info("Sending email notification", to: to, subject: subject)
+  def send_email(to, subject, message, job_id \\ nil) do
+    Logger.info("Sending email notification", to: to, subject: subject, job_id: job_id)
 
     # Build email using Swoosh
     email =
@@ -133,13 +174,72 @@ defmodule TireDispatch.Workers.SendNotificationWorker do
     # Send email via configured mailer
     case TireDispatch.Mailer.deliver(email) do
       {:ok, _metadata} ->
-        Logger.info("Email sent successfully", to: to, subject: subject)
+        Logger.info("Email sent successfully", to: to, subject: subject, job_id: job_id)
         :ok
 
       {:error, reason} ->
         Logger.error("Failed to send email",
           to: to,
           subject: subject,
+          job_id: job_id,
+          reason: inspect(reason)
+        )
+
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Sends an email from a pre-built email struct.
+
+  ## Arguments
+
+    * `email_data` - Map with email fields (to, from, subject, html_body, text_body)
+    * `job_id` - Associated job ID for logging
+
+  ## Returns
+
+    * `:ok` on success
+    * `{:error, reason}` on failure
+  """
+  def send_email_from_struct(email_data, job_id) do
+    Logger.info("Sending email from struct",
+      to: email_data["to"],
+      subject: email_data["subject"],
+      job_id: job_id
+    )
+
+    # Build email using Swoosh
+    email =
+      Swoosh.Email.new()
+      |> Swoosh.Email.to(email_data["to"])
+      |> Swoosh.Email.from(email_data["from"])
+      |> Swoosh.Email.subject(email_data["subject"])
+      |> Swoosh.Email.html_body(email_data["html_body"])
+
+    email =
+      if email_data["text_body"] do
+        Swoosh.Email.text_body(email, email_data["text_body"])
+      else
+        email
+      end
+
+    # Send email via configured mailer
+    case TireDispatch.Mailer.deliver(email) do
+      {:ok, _metadata} ->
+        Logger.info("Email sent successfully",
+          to: email_data["to"],
+          subject: email_data["subject"],
+          job_id: job_id
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.error("Failed to send email",
+          to: email_data["to"],
+          subject: email_data["subject"],
+          job_id: job_id,
           reason: inspect(reason)
         )
 

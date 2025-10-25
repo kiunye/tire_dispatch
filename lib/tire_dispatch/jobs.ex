@@ -41,10 +41,44 @@ defmodule TireDispatch.Jobs do
   def create_job(driver_id, attrs) do
     attrs = Map.put(attrs, :driver_id, driver_id)
 
-    %Job{}
-    |> Job.changeset(attrs)
-    |> Repo.insert()
-    |> tap(&broadcast_job_created/1)
+    result =
+      %Job{}
+      |> Job.changeset(attrs)
+      |> Repo.insert()
+      |> tap(&broadcast_job_created/1)
+
+    case result do
+      {:ok, job} ->
+        Logger.info("Job created successfully",
+          job_id: job.id,
+          driver_id: driver_id,
+          service_type: job.service_type,
+          urgency_tier: job.urgency_tier,
+          status: job.status
+        )
+
+        # Emit telemetry event
+        :telemetry.execute(
+          [:tire_dispatch, :jobs, :created],
+          %{count: 1},
+          %{
+            job_id: job.id,
+            driver_id: driver_id,
+            service_type: job.service_type,
+            urgency_tier: job.urgency_tier
+          }
+        )
+
+        {:ok, job}
+
+      {:error, changeset} ->
+        Logger.error("Failed to create job",
+          driver_id: driver_id,
+          errors: inspect(changeset.errors)
+        )
+
+        {:error, changeset}
+    end
   end
 
   @doc """
@@ -97,6 +131,23 @@ defmodule TireDispatch.Jobs do
     Job
     |> Repo.get!(id)
     |> Repo.preload([:driver, :provider])
+  end
+
+  @doc """
+  Lists all jobs regardless of status.
+
+  ## Examples
+
+      iex> list_all_jobs()
+      [%Job{}, ...]
+
+  """
+  def list_all_jobs do
+    from(j in Job,
+      order_by: [desc: j.inserted_at],
+      preload: [:driver, :provider]
+    )
+    |> Repo.all()
   end
 
   @doc """
@@ -182,13 +233,60 @@ defmodule TireDispatch.Jobs do
 
   """
   def accept_job(%Job{status: :open} = job, provider_id) do
-    job
-    |> Job.status_changeset(%{status: :accepted, provider_id: provider_id})
-    |> Repo.update()
-    |> tap(&broadcast_job_accepted/1)
+    result =
+      job
+      |> Job.status_changeset(%{status: :accepted, provider_id: provider_id})
+      |> Repo.update()
+      |> tap(&broadcast_job_accepted/1)
+
+    case result do
+      {:ok, updated_job} ->
+        # Calculate response time (time from creation to acceptance)
+        response_time =
+          DateTime.diff(updated_job.updated_at, updated_job.inserted_at, :millisecond)
+
+        Logger.info("Job accepted by provider",
+          job_id: job.id,
+          provider_id: provider_id,
+          driver_id: job.driver_id,
+          previous_status: :open,
+          new_status: :accepted,
+          response_time_ms: response_time
+        )
+
+        # Emit telemetry event
+        :telemetry.execute(
+          [:tire_dispatch, :jobs, :accepted],
+          %{count: 1, response_time: response_time},
+          %{
+            job_id: job.id,
+            provider_id: provider_id,
+            driver_id: job.driver_id,
+            service_type: job.service_type
+          }
+        )
+
+        {:ok, updated_job}
+
+      {:error, changeset} ->
+        Logger.error("Failed to accept job",
+          job_id: job.id,
+          provider_id: provider_id,
+          errors: inspect(changeset.errors)
+        )
+
+        {:error, changeset}
+    end
   end
 
-  def accept_job(%Job{} = _job, _provider_id) do
+  def accept_job(%Job{} = job, provider_id) do
+    Logger.warning("Invalid job state transition attempted",
+      job_id: job.id,
+      provider_id: provider_id,
+      current_status: job.status,
+      attempted_action: :accept
+    )
+
     {:error, "Job cannot be accepted from current state"}
   end
 
@@ -204,13 +302,41 @@ defmodule TireDispatch.Jobs do
 
   """
   def start_travel(%Job{status: :accepted} = job) do
-    job
-    |> Job.status_changeset(%{status: :en_route})
-    |> Repo.update()
-    |> tap(&broadcast_job_updated/1)
+    result =
+      job
+      |> Job.status_changeset(%{status: :en_route})
+      |> Repo.update()
+      |> tap(&broadcast_job_updated/1)
+
+    case result do
+      {:ok, updated_job} ->
+        Logger.info("Provider started traveling to job",
+          job_id: job.id,
+          provider_id: job.provider_id,
+          driver_id: job.driver_id,
+          previous_status: :accepted,
+          new_status: :en_route
+        )
+
+        {:ok, updated_job}
+
+      {:error, changeset} ->
+        Logger.error("Failed to start travel",
+          job_id: job.id,
+          errors: inspect(changeset.errors)
+        )
+
+        {:error, changeset}
+    end
   end
 
-  def start_travel(%Job{} = _job) do
+  def start_travel(%Job{} = job) do
+    Logger.warning("Invalid job state transition attempted",
+      job_id: job.id,
+      current_status: job.status,
+      attempted_action: :start_travel
+    )
+
     {:error, "Job cannot transition to en_route from current state"}
   end
 
@@ -226,10 +352,32 @@ defmodule TireDispatch.Jobs do
 
   """
   def mark_on_site(%Job{status: :en_route} = job) do
-    job
-    |> Job.status_changeset(%{status: :on_site})
-    |> Repo.update()
-    |> tap(&broadcast_job_updated/1)
+    result =
+      job
+      |> Job.status_changeset(%{status: :on_site})
+      |> Repo.update()
+      |> tap(&broadcast_job_updated/1)
+
+    case result do
+      {:ok, updated_job} ->
+        Logger.info("Provider arrived on site",
+          job_id: job.id,
+          provider_id: job.provider_id,
+          driver_id: job.driver_id,
+          previous_status: :en_route,
+          new_status: :on_site
+        )
+
+        {:ok, updated_job}
+
+      {:error, changeset} ->
+        Logger.error("Failed to mark on site",
+          job_id: job.id,
+          errors: inspect(changeset.errors)
+        )
+
+        {:error, changeset}
+    end
   end
 
   def mark_on_site(%Job{} = _job) do
@@ -259,19 +407,67 @@ defmodule TireDispatch.Jobs do
 
   """
   def complete_job(%Job{status: :on_site} = job, before_photo_url, after_photo_url) do
-    job
-    |> Job.completion_changeset(%{
-      status: :completed,
-      before_photo_url: before_photo_url,
-      after_photo_url: after_photo_url,
-      final_price_cents: job.estimated_price_cents,
-      completed_at: DateTime.utc_now(:microsecond)
-    })
-    |> Repo.update()
-    |> tap(&broadcast_job_completed/1)
+    result =
+      job
+      |> Job.completion_changeset(%{
+        status: :completed,
+        before_photo_url: before_photo_url,
+        after_photo_url: after_photo_url,
+        final_price_cents: job.estimated_price_cents,
+        completed_at: DateTime.utc_now(:microsecond)
+      })
+      |> Repo.update()
+      |> tap(&broadcast_job_completed/1)
+
+    case result do
+      {:ok, completed_job} ->
+        # Calculate completion time (time from creation to completion)
+        completion_time =
+          DateTime.diff(completed_job.completed_at, completed_job.inserted_at, :millisecond)
+
+        Logger.info("Job completed successfully",
+          job_id: job.id,
+          provider_id: job.provider_id,
+          driver_id: job.driver_id,
+          final_price_cents: completed_job.final_price_cents,
+          service_type: job.service_type,
+          completed_at: completed_job.completed_at,
+          completion_time_ms: completion_time
+        )
+
+        # Emit telemetry event
+        :telemetry.execute(
+          [:tire_dispatch, :jobs, :completed],
+          %{count: 1, completion_time: completion_time},
+          %{
+            job_id: job.id,
+            provider_id: job.provider_id,
+            driver_id: job.driver_id,
+            service_type: job.service_type,
+            final_price_cents: completed_job.final_price_cents
+          }
+        )
+
+        {:ok, completed_job}
+
+      {:error, changeset} ->
+        Logger.error("Failed to complete job",
+          job_id: job.id,
+          provider_id: job.provider_id,
+          errors: inspect(changeset.errors)
+        )
+
+        {:error, changeset}
+    end
   end
 
-  def complete_job(%Job{} = _job, _before_photo_url, _after_photo_url) do
+  def complete_job(%Job{} = job, _before_photo_url, _after_photo_url) do
+    Logger.warning("Invalid job state transition attempted",
+      job_id: job.id,
+      current_status: job.status,
+      attempted_action: :complete
+    )
+
     {:error, "Job can only be completed from on_site status"}
   end
 
@@ -302,6 +498,7 @@ defmodule TireDispatch.Jobs do
     |> Job.status_changeset(%{status: :payment_confirmed})
     |> Repo.update()
     |> tap(&broadcast_job_updated/1)
+    |> tap(&send_payment_confirmation_notification/1)
   end
 
   @doc """
@@ -325,16 +522,55 @@ defmodule TireDispatch.Jobs do
       {:ok, %Job{status: :cancelled, cancellation_reason: "..."}}
 
   """
-  def cancel_job(%Job{status: :completed} = _job, _reason) do
+  def cancel_job(%Job{status: :completed} = job, _reason) do
+    Logger.warning("Attempted to cancel completed job",
+      job_id: job.id,
+      current_status: :completed
+    )
+
     {:error, "Cannot cancel a completed job"}
   end
 
   def cancel_job(%Job{} = job, reason) do
-    job
-    |> Job.status_changeset(%{status: :cancelled})
-    |> Ecto.Changeset.put_change(:cancellation_reason, reason)
-    |> Repo.update()
-    |> tap(&broadcast_job_cancelled/1)
+    result =
+      job
+      |> Job.status_changeset(%{status: :cancelled})
+      |> Ecto.Changeset.put_change(:cancellation_reason, reason)
+      |> Repo.update()
+      |> tap(&broadcast_job_cancelled/1)
+
+    case result do
+      {:ok, cancelled_job} ->
+        Logger.info("Job cancelled",
+          job_id: job.id,
+          driver_id: job.driver_id,
+          provider_id: job.provider_id,
+          previous_status: job.status,
+          cancellation_reason: reason
+        )
+
+        # Emit telemetry event
+        :telemetry.execute(
+          [:tire_dispatch, :jobs, :cancelled],
+          %{count: 1},
+          %{
+            job_id: job.id,
+            driver_id: job.driver_id,
+            provider_id: job.provider_id,
+            cancellation_reason: reason
+          }
+        )
+
+        {:ok, cancelled_job}
+
+      {:error, changeset} ->
+        Logger.error("Failed to cancel job",
+          job_id: job.id,
+          errors: inspect(changeset.errors)
+        )
+
+        {:error, changeset}
+    end
   end
 
   # Broadcasting functions using tap/2 pattern
@@ -350,6 +586,12 @@ defmodule TireDispatch.Jobs do
 
     TireDispatchWeb.Endpoint.broadcast(
       "driver:#{job.driver_id}:jobs",
+      "job_created",
+      %{job: job}
+    )
+
+    TireDispatchWeb.Endpoint.broadcast(
+      "admin:jobs",
       "job_created",
       %{job: job}
     )
@@ -384,6 +626,15 @@ defmodule TireDispatch.Jobs do
       %{job: job}
     )
 
+    TireDispatchWeb.Endpoint.broadcast(
+      "admin:jobs",
+      "job_accepted",
+      %{job: job}
+    )
+
+    # Send SMS notification to driver
+    send_provider_accepted_notification({:ok, job})
+
     {:ok, job}
   end
 
@@ -411,6 +662,12 @@ defmodule TireDispatch.Jobs do
         %{job: job}
       )
     end
+
+    TireDispatchWeb.Endpoint.broadcast(
+      "admin:jobs",
+      "job_updated",
+      %{job: job}
+    )
 
     {:ok, job}
   end
@@ -442,6 +699,15 @@ defmodule TireDispatch.Jobs do
       %{job: job}
     )
 
+    TireDispatchWeb.Endpoint.broadcast(
+      "admin:jobs",
+      "job_completed",
+      %{job: job}
+    )
+
+    # Send SMS and email notifications to driver
+    send_job_completion_notification({:ok, job})
+
     {:ok, job}
   end
 
@@ -472,6 +738,12 @@ defmodule TireDispatch.Jobs do
         %{job: job}
       )
     end
+
+    TireDispatchWeb.Endpoint.broadcast(
+      "admin:jobs",
+      "job_cancelled",
+      %{job: job}
+    )
 
     {:ok, job}
   end
@@ -573,14 +845,14 @@ defmodule TireDispatch.Jobs do
     from(j in Job,
       where:
         fragment(
-          "ST_Distance_Sphere(?, ?) <= ?",
+          "ST_DistanceSphere(?, ?) <= ?",
           j.driver_location,
           ^point,
           ^radius_meters
         ),
       order_by:
         fragment(
-          "ST_Distance_Sphere(?, ?) ASC",
+          "ST_DistanceSphere(?, ?) ASC",
           j.driver_location,
           ^point
         ),
@@ -618,14 +890,14 @@ defmodule TireDispatch.Jobs do
       where: j.status == :open,
       where:
         fragment(
-          "ST_Distance_Sphere(?, ?) <= ?",
+          "ST_DistanceSphere(?, ?) <= ?",
           j.driver_location,
           ^point,
           ^radius_meters
         ),
       order_by:
         fragment(
-          "ST_Distance_Sphere(?, ?) ASC",
+          "ST_DistanceSphere(?, ?) ASC",
           j.driver_location,
           ^point
         ),
@@ -662,7 +934,7 @@ defmodule TireDispatch.Jobs do
       from(j in Job,
         select:
           fragment(
-            "ST_Distance_Sphere(?, ?)",
+            "ST_DistanceSphere(?, ?)",
             ^point1,
             ^point2
           ),
@@ -746,14 +1018,14 @@ defmodule TireDispatch.Jobs do
         from(j in query,
           where:
             fragment(
-              "ST_Distance_Sphere(?, ?) <= ?",
+              "ST_DistanceSphere(?, ?) <= ?",
               j.driver_location,
               ^point,
               ^radius_meters
             ),
           order_by:
             fragment(
-              "ST_Distance_Sphere(?, ?) ASC",
+              "ST_DistanceSphere(?, ?) ASC",
               j.driver_location,
               ^point
             )
@@ -762,5 +1034,132 @@ defmodule TireDispatch.Jobs do
       _ ->
         query
     end
+  end
+
+  # Notification helper functions
+
+  defp send_payment_confirmation_notification({:ok, job}) do
+    # Preload driver to get phone number and email
+    job = Repo.preload(job, :driver)
+
+    # Send SMS notification
+    if job.driver.phone_number do
+      message = """
+      Payment confirmed for Job ##{String.slice(job.id, 0..7)}!
+
+      Your #{format_service_type(job.service_type)} service request has been received.
+      A provider will be assigned shortly.
+
+      - Tire Dispatch
+      """
+
+      TireDispatch.Notifications.send_sms(
+        job.driver.phone_number,
+        message,
+        job_id: job.id
+      )
+    end
+
+    # Send email notification
+    if job.driver.email do
+      TireDispatch.Notifications.send_payment_confirmation_email(
+        job.driver.email,
+        job,
+        job.estimated_price_cents
+      )
+    end
+
+    {:ok, job}
+  end
+
+  defp send_payment_confirmation_notification(error), do: error
+
+  defp send_provider_accepted_notification({:ok, job}) do
+    # Preload driver and provider to get contact info
+    job = Repo.preload(job, [:driver, :provider])
+
+    # Send SMS notification to driver
+    if job.driver.phone_number && job.provider do
+      message = """
+      Great news! Your tire service has been accepted.
+
+      Provider: #{job.provider.email}
+      Job: ##{String.slice(job.id, 0..7)}
+      Service: #{format_service_type(job.service_type)}
+
+      Your provider will be on the way soon!
+
+      - Tire Dispatch
+      """
+
+      TireDispatch.Notifications.send_sms(
+        job.driver.phone_number,
+        message,
+        job_id: job.id
+      )
+    end
+
+    {:ok, job}
+  end
+
+  defp send_provider_accepted_notification(error), do: error
+
+  defp send_job_completion_notification({:ok, job}) do
+    # Preload driver to get contact info
+    job = Repo.preload(job, :driver)
+
+    # Send SMS notification
+    if job.driver.phone_number do
+      message = """
+      Your tire service is complete!
+
+      Job ##{job.id}
+      Service: #{format_service_type(job.service_type)}
+      Amount: #{format_currency(job.final_price_cents)}
+
+      Check your email for the full receipt with before/after photos.
+
+      Thank you for using Tire Dispatch!
+      """
+
+      TireDispatch.Notifications.send_sms(
+        job.driver.phone_number,
+        message,
+        job_id: job.id
+      )
+    end
+
+    # Send email notification with receipt
+    if job.driver.email do
+      receipt_data = %{
+        amount_cents: job.final_price_cents,
+        receipt_url: "https://tiredispatch.com/receipts/#{job.id}"
+      }
+
+      TireDispatch.Notifications.send_job_completion_email(
+        job.driver.email,
+        job,
+        receipt_data
+      )
+    end
+
+    {:ok, job}
+  end
+
+  defp send_job_completion_notification(error), do: error
+
+  # Helper functions for formatting
+
+  defp format_service_type(service_type) do
+    service_type
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.split()
+    |> Enum.map_join(" ", &String.capitalize/1)
+  end
+
+  defp format_currency(amount_cents) do
+    dollars = amount_cents / 100
+    "$#{:erlang.float_to_binary(dollars, decimals: 2)}"
   end
 end

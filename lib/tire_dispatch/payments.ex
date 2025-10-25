@@ -94,6 +94,25 @@ defmodule TireDispatch.Payments do
   end
 
   @doc """
+  Gets the payment transaction for a specific job.
+
+  ## Arguments
+
+    * `job_id` - UUID of the job
+
+  ## Returns
+
+    * `{:ok, transaction}` if found
+    * `{:error, :not_found}` if not found
+  """
+  def get_payment_transaction_for_job(job_id) do
+    case Repo.get_by(Transaction, job_id: job_id, type: :payment) do
+      nil -> {:error, :not_found}
+      transaction -> {:ok, Repo.preload(transaction, [:job, :driver])}
+    end
+  end
+
+  @doc """
   Updates a transaction's status.
 
   ## Arguments
@@ -214,6 +233,18 @@ defmodule TireDispatch.Payments do
           reason: inspect(reason)
         )
 
+        # Capture error in Sentry for critical refund failures
+        TireDispatch.ErrorHandler.capture_message(
+          "Refund processing failed",
+          :error,
+          %{
+            transaction_id: transaction.id,
+            payment_method: transaction.payment_method,
+            amount_cents: transaction.amount_cents,
+            reason: inspect(reason)
+          }
+        )
+
         error
     end
   end
@@ -252,6 +283,19 @@ defmodule TireDispatch.Payments do
         Logger.error("Payout transfer failed",
           payout_id: payout_transaction.id,
           reason: error_message
+        )
+
+        # Capture critical payout failure in Sentry
+        TireDispatch.ErrorHandler.capture_message(
+          "Stripe payout transfer failed",
+          :error,
+          %{
+            payout_id: payout_transaction.id,
+            provider_id: payout_transaction.provider_id,
+            amount_cents: payout_transaction.amount_cents,
+            job_id: payout_transaction.job_id,
+            error: error_message
+          }
         )
 
         mark_payment_failed(payout_transaction, error_message)
@@ -432,6 +476,20 @@ defmodule TireDispatch.Payments do
       payment_method: transaction.payment_method
     )
 
+    # Emit telemetry event for payment initiation
+    if transaction.type == :payment do
+      :telemetry.execute(
+        [:tire_dispatch, :payments, :initiated],
+        %{count: 1},
+        %{
+          transaction_id: transaction.id,
+          payment_method: transaction.payment_method,
+          amount_cents: transaction.amount_cents,
+          job_id: transaction.job_id
+        }
+      )
+    end
+
     {:ok, transaction}
   end
 
@@ -444,10 +502,78 @@ defmodule TireDispatch.Payments do
       external_transaction_id: transaction.external_transaction_id
     )
 
+    # Emit telemetry events based on transaction type and status
+    emit_transaction_telemetry(transaction)
+
     {:ok, transaction}
   end
 
   defp log_transaction_updated(error), do: error
+
+  defp emit_transaction_telemetry(%{type: :payment, status: :completed} = transaction) do
+    processing_time = calculate_processing_time(transaction)
+
+    :telemetry.execute(
+      [:tire_dispatch, :payments, :completed],
+      %{count: 1, processing_time: processing_time},
+      %{
+        transaction_id: transaction.id,
+        payment_method: transaction.payment_method,
+        amount_cents: transaction.amount_cents,
+        job_id: transaction.job_id
+      }
+    )
+  end
+
+  defp emit_transaction_telemetry(%{type: :payment, status: :failed} = transaction) do
+    :telemetry.execute(
+      [:tire_dispatch, :payments, :failed],
+      %{count: 1},
+      %{
+        transaction_id: transaction.id,
+        payment_method: transaction.payment_method,
+        error: transaction.error_message,
+        job_id: transaction.job_id
+      }
+    )
+  end
+
+  defp emit_transaction_telemetry(%{type: :payout, status: :completed} = transaction) do
+    :telemetry.execute(
+      [:tire_dispatch, :payouts, :processed],
+      %{count: 1},
+      %{
+        payout_id: transaction.id,
+        provider_id: transaction.provider_id,
+        amount_cents: transaction.amount_cents,
+        payment_method: transaction.payment_method,
+        job_id: transaction.job_id
+      }
+    )
+  end
+
+  defp emit_transaction_telemetry(%{type: :payout, status: :failed} = transaction) do
+    :telemetry.execute(
+      [:tire_dispatch, :payouts, :failed],
+      %{count: 1},
+      %{
+        payout_id: transaction.id,
+        provider_id: transaction.provider_id,
+        error: transaction.error_message,
+        job_id: transaction.job_id
+      }
+    )
+  end
+
+  defp emit_transaction_telemetry(_transaction), do: :ok
+
+  defp calculate_processing_time(transaction) do
+    if transaction.updated_at && transaction.inserted_at do
+      DateTime.diff(transaction.updated_at, transaction.inserted_at, :millisecond)
+    else
+      0
+    end
+  end
 
   defp log_payout_created({:ok, payout}) do
     Logger.info("Payout transaction created",

@@ -77,6 +77,9 @@ config :phoenix_live_view,
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
+# Configure Swoosh mailer for development (local adapter for testing)
+config :tire_dispatch, TireDispatch.Mailer, adapter: Swoosh.Adapters.Local
+
 # AWS S3 configuration for development
 config :ex_aws,
   access_key_id: System.get_env("AWS_ACCESS_KEY_ID"),
@@ -87,5 +90,10 @@ config :ex_aws, :s3,
   scheme: "https://",
   host: "s3.amazonaws.com",
   region: System.get_env("AWS_REGION") || "us-east-1"
+
+# Disable Sentry in development
+config :sentry,
+  environment_name: :dev,
+  included_environments: []
 
 import_config "dev.secret.exs"

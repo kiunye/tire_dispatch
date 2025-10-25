@@ -99,23 +99,15 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
-  # ## Configuring the mailer
-  #
-  # In production you need to configure the mailer to use a different adapter.
-  # Here is an example configuration for Mailgun:
-  #
-  #     config :tire_dispatch, TireDispatch.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # Most non-SMTP adapters require an API client. Swoosh supports Req, Hackney,
-  # and Finch out-of-the-box. This configuration is typically done at
-  # compile-time in your config/prod.exs:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Req
-  #
-  # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
+  # Configure Swoosh mailer for production
+  # Using Resend as the email service provider (modern, developer-friendly)
+  # Alternative: SendGrid, Mailgun, Postmark, etc.
+  config :tire_dispatch, TireDispatch.Mailer,
+    adapter: Swoosh.Adapters.Resend,
+    api_key: System.fetch_env!("RESEND_API_KEY")
+
+  # Configure Swoosh API client
+  config :swoosh, :api_client, Swoosh.ApiClient.Req
 
   # Stripe configuration
   config :stripity_stripe,
@@ -157,6 +149,13 @@ if config_env() == :prod do
     callback_url: System.fetch_env!("MPESA_CALLBACK_URL"),
     timeout_url: System.fetch_env!("MPESA_TIMEOUT_URL"),
     result_url: System.fetch_env!("MPESA_RESULT_URL")
+
+  # AfricasTalking SMS configuration
+  config :tire_dispatch, TireDispatch.Notifications.AfricasTalking,
+    api_key: System.fetch_env!("AFRICAS_TALKING_API_KEY"),
+    username: System.fetch_env!("AFRICAS_TALKING_USERNAME"),
+    sender_id: System.get_env("AFRICAS_TALKING_SENDER_ID"),
+    environment: System.get_env("AFRICAS_TALKING_ENVIRONMENT") || "sandbox"
 
   # Sentry error tracking
   if sentry_dsn = System.get_env("SENTRY_DSN") do

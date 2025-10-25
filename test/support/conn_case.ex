@@ -28,6 +28,8 @@ defmodule TireDispatchWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import TireDispatchWeb.ConnCase
+      import TireDispatch.Factory
+      import Mox
     end
   end
 

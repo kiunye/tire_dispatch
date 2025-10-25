@@ -25,6 +25,9 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
+# Disable Oban in test mode to avoid database ownership issues
+config :tire_dispatch, Oban, testing: :manual
+
 # AWS S3 configuration for test (use mock or test bucket)
 config :ex_aws,
   access_key_id: "test_key",
@@ -35,5 +38,10 @@ config :ex_aws, :s3,
   scheme: "https://",
   host: "s3.amazonaws.com",
   region: "us-east-1"
+
+# Disable Sentry in test (use dsn: nil instead of deprecated included_environments)
+config :sentry,
+  dsn: nil,
+  environment_name: :test
 
 import_config "test.secret.exs"

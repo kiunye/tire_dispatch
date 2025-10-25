@@ -24,6 +24,8 @@ defmodule TireDispatch.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import TireDispatch.DataCase
+      import TireDispatch.Factory
+      import Mox
     end
   end
 
